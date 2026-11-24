@@ -21,7 +21,11 @@ import {
 import type { SmokeCollectionClient } from './postman/smoke-client-contract.js';
 import { PostmanGatewaySmokeClient } from './postman/postman-gateway-smoke-client.js';
 import { AccessTokenProvider, mintAccessTokenIfNeeded } from './lib/postman/token-provider.js';
-import { applyEndpointOverrides } from './lib/postman/base-urls.js';
+import {
+  applyEndpointOverrides,
+  resolvePostmanEndpointProfile,
+  type PostmanEndpointProfile
+} from './lib/postman/base-urls.js';
 import {
   getMemoizedSessionIdentity,
   runCredentialPreflight
@@ -101,19 +105,17 @@ function parseBooleanInput(
   throw new Error(`Invalid boolean value for ${name}: ${value}`);
 }
 
-function resolvePostmanApiBaseUrl(regionInput: string): string {
+/**
+ * Region-resolved hosts. EU is a separate identity and gateway stack, so the
+ * API, iapub and Bifrost hosts must all follow the region; an EU-minted token
+ * is rejected by the US iapub and Bifrost hosts.
+ */
+function resolvePostmanRegionEndpoints(regionInput: string): PostmanEndpointProfile {
   const region = String(regionInput || 'us').trim().toLowerCase();
-  if (region === 'us') return 'https://api.getpostman.com';
-  if (region === 'eu') return 'https://api.eu.postman.com';
-  throw new Error(`postman-region must be one of: us, eu; got: ${region}`);
-}
-
-/** iapub serves the session-identity probe globally; it is region-independent. */
-function resolvePostmanIapubBaseUrl(regionInput: string): string {
-  // Validate the region for parity with the API base resolver, then return the
-  // shared identity-pub host used for both us and eu.
-  resolvePostmanApiBaseUrl(regionInput);
-  return 'https://iapub.postman.co';
+  if (region !== 'us' && region !== 'eu') {
+    throw new Error(`postman-region must be one of: us, eu; got: ${region}`);
+  }
+  return resolvePostmanEndpointProfile('prod', region);
 }
 
 function getInput(name: string, env: NodeJS.ProcessEnv): string {
@@ -193,11 +195,12 @@ function parseAuthConfig(value: string): SmokeAuthConfig | undefined {
 
 export function readActionInputs(env: NodeJS.ProcessEnv = process.env): ActionInputs {
   const region = getInput('postman-region', env);
+  const profile = resolvePostmanRegionEndpoints(region);
   const endpoints = applyEndpointOverrides(
     {
-      apiBaseUrl: resolvePostmanApiBaseUrl(region),
-      bifrostBaseUrl: 'https://bifrost-premium-https-v4.gw.postman.com',
-      iapubBaseUrl: resolvePostmanIapubBaseUrl(region)
+      apiBaseUrl: profile.apiBaseUrl,
+      bifrostBaseUrl: profile.bifrostBaseUrl,
+      iapubBaseUrl: profile.iapubBaseUrl
     },
     env
   );

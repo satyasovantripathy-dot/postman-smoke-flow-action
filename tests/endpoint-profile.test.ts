@@ -39,8 +39,8 @@ describe('smoke-flow endpoint defaults', () => {
       readActionInputs({ 'INPUT_POSTMAN-REGION': 'eu' } as NodeJS.ProcessEnv)
     ).toMatchObject({
       postmanApiBaseUrl: 'https://api.eu.postman.com',
-      postmanBifrostBaseUrl: 'https://bifrost-premium-https-v4.gw.postman.com',
-      postmanIapubBaseUrl: 'https://iapub.postman.co'
+      postmanBifrostBaseUrl: 'https://bifrost-premium-https.gw.eu.postman.com',
+      postmanIapubBaseUrl: 'https://iapub.eu.postman.co'
     });
   });
 });

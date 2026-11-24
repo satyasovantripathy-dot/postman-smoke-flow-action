@@ -41266,6 +41266,22 @@ var POSTMAN_ENDPOINT_PROFILES = {
     iapubBaseUrl: "https://iapub.postman.co"
   }
 };
+var EU_PROD_ENDPOINTS = {
+  apiBaseUrl: "https://api.eu.postman.com",
+  bifrostBaseUrl: "https://bifrost-premium-https.gw.eu.postman.com",
+  gatewayBaseUrl: "https://gateway.eu.postman.com",
+  iapubBaseUrl: "https://iapub.eu.postman.co"
+};
+function resolvePostmanEndpointProfile(stack, region = "us") {
+  if (stack === "beta" && region !== "us") {
+    throw new Error("postman-region=eu is only supported with postman-stack=prod");
+  }
+  const profile = POSTMAN_ENDPOINT_PROFILES[stack];
+  if (region === "eu") {
+    return { ...profile, ...EU_PROD_ENDPOINTS };
+  }
+  return profile;
+}
 var EMULATOR_PROFILE_ENV = "POSTMAN_TEST_EMULATOR_PROFILE";
 var EMULATOR_PROFILE_NAME = "emulator";
 var ENDPOINT_OVERRIDE_ENV = {
@@ -42274,15 +42290,12 @@ function parseBooleanInput(name, value, defaultValue) {
   }
   throw new Error(`Invalid boolean value for ${name}: ${value}`);
 }
-function resolvePostmanApiBaseUrl(regionInput) {
+function resolvePostmanRegionEndpoints(regionInput) {
   const region = String(regionInput || "us").trim().toLowerCase();
-  if (region === "us") return "https://api.getpostman.com";
-  if (region === "eu") return "https://api.eu.postman.com";
-  throw new Error(`postman-region must be one of: us, eu; got: ${region}`);
-}
-function resolvePostmanIapubBaseUrl(regionInput) {
-  resolvePostmanApiBaseUrl(regionInput);
-  return "https://iapub.postman.co";
+  if (region !== "us" && region !== "eu") {
+    throw new Error(`postman-region must be one of: us, eu; got: ${region}`);
+  }
+  return resolvePostmanEndpointProfile("prod", region);
 }
 function getInput2(name, env) {
   const runnerEnvName = `INPUT_${name.replace(/ /g, "_").toUpperCase()}`;
@@ -42349,11 +42362,12 @@ function parseAuthConfig(value) {
 }
 function readActionInputs(env = process.env) {
   const region = getInput2("postman-region", env);
+  const profile = resolvePostmanRegionEndpoints(region);
   const endpoints = applyEndpointOverrides(
     {
-      apiBaseUrl: resolvePostmanApiBaseUrl(region),
-      bifrostBaseUrl: "https://bifrost-premium-https-v4.gw.postman.com",
-      iapubBaseUrl: resolvePostmanIapubBaseUrl(region)
+      apiBaseUrl: profile.apiBaseUrl,
+      bifrostBaseUrl: profile.bifrostBaseUrl,
+      iapubBaseUrl: profile.iapubBaseUrl
     },
     env
   );
